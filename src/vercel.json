@@ -1,19 +1,13 @@
 {
-    "version": 2,
-    "builds": [
-      {
-        "src": "src/app/api/extract-page/route.js",
-        "use": "@vercel/node"
-      }
-    ],
-    "functions": {
-      "api/extract-page/route.js": {
-        "memory": 1024,
-        "maxDuration": 60
-      }
-    },
-    "env": {
-      "PUPPETEER_LAUNCH_FLAGS": "--no-sandbox --disable-setuid-sandbox --disable-gpu"
+  "builds": [
+    {
+      "src": "src/app/api/extract-page/route.js",
+      "use": "@vercel/node"
+    }
+  ],
+  "functions": {
+    "src/app/api/extract-page/route.js": {
+      "includeFiles": "node_modules/**/*"
     }
   }
-  
+}
