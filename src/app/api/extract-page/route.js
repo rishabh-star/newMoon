@@ -1,5 +1,5 @@
-// src/app/api/extract-page/route.js
-import puppeteer from 'puppeteer';
+import chromium from 'chrome-aws-lambda';
+import puppeteer from 'puppeteer-core';
 
 export async function GET(request) {
   const url = new URL(request.url);
@@ -9,13 +9,18 @@ export async function GET(request) {
     return new Response(JSON.stringify({ success: false, message: 'No impo parameter provided' }), { status: 400 });
   }
 
-  const browser = await puppeteer.launch({
-    headless: true,
-    args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-gpu']
-  });
-  const page = await browser.newPage();
+  let browser = null;
 
   try {
+    browser = await puppeteer.launch({
+      args: chromium.args,
+      defaultViewport: chromium.defaultViewport,
+      executablePath: await chromium.executablePath,
+      headless: chromium.headless,
+    });
+
+    const page = await browser.newPage();
+
     await page.setRequestInterception(true);
     page.on('request', request => {
       if (['image', 'stylesheet', 'font'].includes(request.resourceType())) {
@@ -72,7 +77,9 @@ export async function GET(request) {
     return new Response(JSON.stringify({ success: true, data }), { status: 200 });
   } catch (error) {
     console.error('Error extracting data from page:', error.message);
-    await browser.close();
+    if (browser !== null) {
+      await browser.close();
+    }
     return new Response(JSON.stringify({ success: false, message: error.message }), { status: 500 });
   }
 }
