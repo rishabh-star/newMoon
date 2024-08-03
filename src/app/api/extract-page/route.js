@@ -1,5 +1,5 @@
 // src/app/api/extract-page/route.js
-import puppeteer from 'puppeteer';
+import { chromium } from 'playwright';
 
 export async function GET(request) {
   const url = new URL(request.url);
@@ -9,37 +9,33 @@ export async function GET(request) {
     return new Response(JSON.stringify({ success: false, message: 'No impo parameter provided' }), { status: 400 });
   }
 
-  const browser = await puppeteer.launch({
-    headless: true,
-    args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-gpu']
-  });
-  const page = await browser.newPage();
-
+  let browser;
   try {
-    await page.setRequestInterception(true);
-    page.on('request', request => {
+    browser = await chromium.launch({
+      headless: true,
+      args: ['--no-sandbox', '--disable-setuid-sandbox']
+    });
+
+    const page = await browser.newPage();
+
+    // Block resources like images, stylesheets, and fonts to improve performance
+    await page.route('**/*', (route) => {
+      const request = route.request();
       if (['image', 'stylesheet', 'font'].includes(request.resourceType())) {
-        request.abort();
+        route.abort();
       } else {
-        request.continue();
+        route.continue();
       }
     });
 
-    await page.goto(`https://hentai.tv/hentai/${impo}`, { waitUntil: 'networkidle2', timeout: 120000 });
+    await page.goto(`https://hentai.tv/hentai/${impo}`, { waitUntil: 'networkidle' });
 
     // Check if the ad is present and click the close button
     const adSelector = '#aawp .flex-1 .container button';
-    const adPresent = await page.$(adSelector) !== null;
-
-    if (adPresent) {
+    if (await page.$(adSelector)) {
       await page.click(adSelector);
-
-      // Wait for navigation to complete
-      await page.waitForNavigation({ waitUntil: 'networkidle2' });
+      await page.waitForNavigation({ waitUntil: 'networkidle' });
     }
-
-    // Wait for the necessary content to load
-    await page.waitForSelector('#aawp .flex-1 .container', { timeout: 30000 });
 
     // Extract the data
     const data = await page.evaluate(() => {
@@ -71,8 +67,8 @@ export async function GET(request) {
     await browser.close();
     return new Response(JSON.stringify({ success: true, data }), { status: 200 });
   } catch (error) {
+    if (browser) await browser.close();
     console.error('Error extracting data from page:', error.message);
-    await browser.close();
     return new Response(JSON.stringify({ success: false, message: error.message }), { status: 500 });
   }
 }
